@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Maestro Solution</title>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAvCV-iDy3s-eV5693z6RUKLkL2eMKJUNg",
+            authDomain: "maestro-solution.firebaseapp.com",
+            projectId: "maestro-solution",
+            storageBucket: "maestro-solution.firebasestorage.app",
+            messagingSenderId: "676315384684",
+            appId: "1:676315384684:web:f2422750ef5f430e2f4149",
+            measurementId: "G-WG72X7SZLR"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const q = query(collection(db, "monitoreos"), orderBy("fecha", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const tabla = document.getElementById("datos");
+            tabla.innerHTML = "";
+            snapshot.forEach((doc) => {
+                const d = doc.data();
+                const fecha = d.fecha ? d.fecha.toDate().toLocaleString() : "Sin fecha";
+                const promedio = d.promedio || 0;
+                const semaforo = promedio > 5 ? "🔴 CRÍTICO" : "🟢 NORMAL";
+                
+                tabla.innerHTML += `
+                    <tr>
+                        <td>${fecha}</td>
+                        <td>${d.predio}</td>
+                        <td>${d.cuartel}</td>
+                        <td>${promedio.toFixed(2)}</td>
+                        <td style="font-weight:bold; color:${promedio > 5 ? 'red' : 'green'}">${semaforo}</td>
+                    </tr>`;
+            });
+        });
+    </script>
+    <style>
+        body { font-family: sans-serif; background: #f4f7f6; padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { color: #1b5e20; border-bottom: 2px solid #1b5e20; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #2e7d32; color: white; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>MAESTRO SOLUTION - Panel de Monitoreo</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Predio</th>
+                    <th>Cuartel</th>
+                    <th>Promedio Arañitas</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody id="datos">
+                </tbody>
+        </table>
+    </div>
+</body>
+</html>
