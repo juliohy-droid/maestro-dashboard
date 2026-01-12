@@ -4,8 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Maestro Solution - Inteligencia Agrícola</title>
+    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, collection, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -16,169 +21,151 @@
             projectId: "maestro-solution",
             storageBucket: "maestro-solution.firebasestorage.app",
             messagingSenderId: "676315384684",
-            appId: "1:676315384684:web:f2422750ef5f430e2f4149",
-            measurementId: "G-WG72X7SZLR"
+            appId: "1:676315384684:web:f2422750ef5f430e2f4149"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         let myChart;
+        let datosOriginalesMonitoreo = [];
+        let datosOriginalesUsuarios = [];
 
-        // --- ESCUCHADOR 1: REGISTROS DE MONITOREO (Hallazgos técnicos) ---
-        const qMonitoreo = query(collection(db, "monitoreos"), orderBy("fecha", "desc"));
-        onSnapshot(qMonitoreo, (snapshot) => {
+        // --- ESCUCHADORES DE FIREBASE ---
+        onSnapshot(query(collection(db, "monitoreos"), orderBy("fecha", "desc")), (snapshot) => {
+            datosOriginalesMonitoreo = snapshot.docs.map(doc => doc.data());
+            aplicarFiltros();
+        });
+
+        onSnapshot(collection(db, "usuarios"), (snapshot) => {
+            datosOriginalesUsuarios = snapshot.docs.map(doc => doc.data());
+            renderizarUsuarios(datosOriginalesUsuarios);
+            actualizarSelectores(datosOriginalesUsuarios);
+        });
+
+        // --- LÓGICA DE FILTROS ---
+        window.aplicarFiltros = () => {
+            const predioF = document.getElementById("f-predio").value;
+            const comunaF = document.getElementById("f-comuna").value;
+
+            const filtrados = datosOriginalesMonitoreo.filter(d => {
+                return (predioF === "Todos" || d.predio === predioF) &&
+                       (comunaF === "Todas" || d.comuna === comunaF);
+            });
+
+            renderizarMonitoreo(filtrados);
+        };
+
+        function actualizarSelectores(usuarios) {
+            const selP = document.getElementById("f-predio");
+            const selC = document.getElementById("f-comuna");
+            const predios = [...new Set(usuarios.map(u => u.predio))];
+            const comunas = [...new Set(usuarios.map(u => u.comuna))];
+
+            selP.innerHTML = '<option value="Todos">Todos los Predios</option>' + predios.map(p => `<option value="${p}">${p}</option>`).join('');
+            selC.innerHTML = '<option value="Todas">Todas las Comunas</option>' + comunas.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+
+        function renderizarMonitoreo(datos) {
             const tabla = document.getElementById("datos-monitoreo");
+            tabla.innerHTML = "";
             const labels = [];
             const valores = [];
-            let totalAlertas = 0;
-            
-            tabla.innerHTML = "";
-            
-            snapshot.docs.forEach((doc) => {
-                const d = doc.data();
+
+            datos.forEach(d => {
                 const fecha = d.fecha ? d.fecha.toDate().toLocaleDateString() : "S/F";
-                const promedio = d.promedio || 0;
-                if(promedio > 5) totalAlertas++;
-
-                tabla.innerHTML += `
-                    <tr>
-                        <td>${fecha}</td>
-                        <td>${d.predio || 'N/A'}</td>
-                        <td>${d.comuna || 'N/A'}</td>
-                        <td>${d.cuartel || 'N/A'}</td>
-                        <td><span class="badge ${promedio > 5 ? 'bg-red' : 'bg-green'}">${promedio.toFixed(2)}</span></td>
-                    </tr>`;
-
+                tabla.innerHTML += `<tr><td>${fecha}</td><td>${d.predio}</td><td>${d.comuna}</td><td>${d.cuartel}</td><td><span class="badge ${d.promedio > 5 ? 'bg-red' : 'bg-green'}">${d.promedio}</span></td></tr>`;
                 labels.unshift(fecha);
-                valores.unshift(promedio);
+                valores.unshift(d.promedio);
             });
-
-            document.getElementById("count-alertas").innerText = totalAlertas;
-            document.getElementById("count-total").innerText = snapshot.docs.length;
             updateChart(labels, valores);
-        });
+        }
 
-        // --- ESCUCHADOR 2: BASE DE DATOS DE PROPIETARIOS (Información del usuario) ---
-        onSnapshot(collection(db, "usuarios"), (snapshot) => {
-            const tablaUsuarios = document.getElementById("datos-usuarios");
-            tablaUsuarios.innerHTML = "";
-            
-            snapshot.docs.forEach((doc) => {
-                const u = doc.data();
-                const cantCuarteles = u.cuarteles ? u.cuarteles.length : 0;
-                
-                tablaUsuarios.innerHTML += `
-                    <tr>
-                        <td><strong>${u.propietario || 'S/N'}</strong></td>
-                        <td>${u.predio || 'S/N'}</td>
-                        <td>${u.region || 'S/N'}</td>
-                        <td>${u.comuna || 'S/N'}</td>
-                        <td><span class="badge bg-green">${cantCuarteles} Cuarteles</span></td>
-                    </tr>`;
-            });
-        });
+        function renderizarUsuarios(datos) {
+            const tabla = document.getElementById("datos-usuarios");
+            tabla.innerHTML = datos.map(u => `<tr><td>${u.propietario}</td><td>${u.predio}</td><td>${u.region}</td><td>${u.comuna}</td><td>${u.cuarteles?.length || 0}</td></tr>`).join('');
+        }
+
+        // --- EXPORTACIÓN ---
+        window.exportExcel = () => {
+            const wb = XLSX.utils.book_new();
+            const wsMon = XLSX.utils.json_to_sheet(datosOriginalesMonitoreo.map(d => ({...d, fecha: d.fecha?.toDate()})));
+            XLSX.utils.book_append_sheet(wb, wsMon, "Monitoreos");
+            const wsUser = XLSX.utils.json_to_sheet(datosOriginalesUsuarios.map(u => ({...u, cuarteles: u.cuarteles?.length})));
+            XLSX.utils.book_append_sheet(wb, wsUser, "Propietarios");
+            XLSX.writeFile(wb, "Reporte_MaestroSolution.xlsx");
+        };
+
+        window.exportPDF = () => {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.text("Reporte Maestro Solution", 14, 15);
+            doc.autoTable({ html: '#tabla-mon-pdf', startY: 25 });
+            doc.save("Reporte_MaestroSolution.pdf");
+        };
 
         function updateChart(labels, data) {
             const ctx = document.getElementById('evolucionChart').getContext('2d');
             if (myChart) myChart.destroy();
-            myChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Presión de Plaga',
-                        data: data,
-                        borderColor: '#2e7d32',
-                        backgroundColor: 'rgba(46, 125, 50, 0.1)',
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: { responsive: true, plugins: { legend: { display: false } } }
-            });
+            myChart = new Chart(ctx, { type: 'line', data: { labels, datasets: [{ label: 'Presión', data, borderColor: '#2e7d32', tension: 0.4 }] } });
         }
     </script>
+
     <style>
-        :root { --primary: #1b5e20; --bg: #f8f9fa; }
+        :root { --primary: #1b5e20; --bg: #f4f7f6; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; }
-        .sidebar { width: 250px; background: var(--primary); height: 100vh; color: white; padding: 20px; position: fixed; }
-        .main { margin-left: 270px; padding: 20px; width: calc(100% - 290px); }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th { text-align: left; padding: 12px; border-bottom: 2px solid #eee; color: #666; font-size: 0.9em; }
-        td { padding: 12px; border-bottom: 1px solid #eee; font-size: 0.9em; }
-        .badge { padding: 5px 10px; border-radius: 20px; color: white; font-size: 0.8em; }
-        .bg-red { background: #e53935; }
-        .bg-green { background: #43a047; }
-        .heat-map-sim { height: 10px; border-radius: 5px; background: linear-gradient(to right, green, yellow, red); margin-top: 5px; }
+        .sidebar { width: 240px; background: var(--primary); height: 100vh; color: white; padding: 20px; position: fixed; }
+        .main { margin-left: 260px; padding: 20px; width: 100%; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .filters { display: flex; gap: 15px; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 8px; }
+        select, .btn { padding: 10px; border-radius: 5px; border: 1px solid #ddd; }
+        .btn { cursor: pointer; border: none; font-weight: bold; color: white; transition: 0.3s; }
+        .btn-excel { background: #2e7d32; }
+        .btn-pdf { background: #c62828; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        .badge { padding: 4px 8px; border-radius: 12px; color: white; font-size: 0.8em; }
+        .bg-red { background: #d32f2f; }
+        .bg-green { background: #388e3c; }
     </style>
 </head>
 <body>
     <div class="sidebar">
-        <h2>MAESTRO</h2>
-        <p>Solution v1.0</p>
-        <hr>
+        <h2>MAESTRO</h2><p>Solution v2.0</p><hr>
         <p>📊 Dashboard</p>
-        <p>🗺️ Mapa de Presión</p>
-        <p>📄 Reportes PDF</p>
+        <button class="btn btn-excel" onclick="exportExcel()" style="width: 100%; margin-bottom: 10px;">Excel</button>
+        <button class="btn btn-pdf" onclick="exportPDF()" style="width: 100%;">PDF</button>
     </div>
 
     <div class="main">
-        <header>
-            <h1>Panel de Control Maestro Solution</h1>
-        </header>
-
-        <div class="grid">
-            <div class="card">
-                <h3>Total Monitoreos</h3>
-                <h2 id="count-total">0</h2>
-            </div>
-            <div class="card">
-                <h3>Alertas Rojas</h3>
-                <h2 id="count-alertas" style="color: red;">0</h2>
-            </div>
-            <div class="card">
-                <h3>Estado General</h3>
-                <div class="heat-map-sim"></div>
-                <p>Presión Media Predial</p>
-            </div>
+        <h1>Panel de Inteligencia Agrícola</h1>
+        
+        <div class="filters">
+            <select id="f-predio" onchange="aplicarFiltros()"></select>
+            <select id="f-comuna" onchange="aplicarFiltros()"></select>
         </div>
 
-        <div class="grid" style="grid-template-columns: 2fr 1fr;">
+        <div class="grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
             <div class="card">
-                <h3>Evolución de la Plaga</h3>
+                <h3>Evolución de Presión</h3>
                 <canvas id="evolucionChart"></canvas>
             </div>
             <div class="card">
-                <h3>Registros de Monitoreo</h3>
-                <div style="max-height: 300px; overflow-y: auto;">
-                    <table>
-                        <thead>
-                            <tr><th>Fecha</th><th>Predio</th><th>Comuna</th><th>Cuartel</th><th>Prom.</th></tr>
-                        </thead>
+                <h3>Últimos Monitoreos</h3>
+                <div style="height: 300px; overflow-y: auto;">
+                    <table id="tabla-mon-pdf">
+                        <thead><tr><th>Fecha</th><th>Predio</th><th>Comuna</th><th>Cuartel</th><th>Prom.</th></tr></thead>
                         <tbody id="datos-monitoreo"></tbody>
                     </table>
                 </div>
             </div>
         </div>
 
-        <div class="grid" style="grid-template-columns: 1fr;">
-            <div class="card">
-                <h3>Base de Datos: Propietarios y Predios Registrados</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Propietario</th>
-                            <th>Predio</th>
-                            <th>Región</th>
-                            <th>Comuna</th>
-                            <th>Cuarteles</th>
-                        </tr>
-                    </thead>
-                    <tbody id="datos-usuarios"></tbody>
-                </table>
-            </div>
+        <div class="card">
+            <h3>Base de Datos Propietarios</h3>
+            <table>
+                <thead><tr><th>Dueño</th><th>Predio</th><th>Región</th><th>Comuna</th><th>Cuarteles</th></tr></thead>
+                <tbody id="datos-usuarios"></tbody>
+            </table>
         </div>
     </div>
 </body>
