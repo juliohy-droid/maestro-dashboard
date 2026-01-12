@@ -144,22 +144,28 @@
                 <h3>Evolución de la Plaga</h3>
                 <canvas id="evolucionChart"></canvas>
             </div>
-            <div class="card">
-                <h3>Registros Recientes</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Predio</th>
-                            <th>Comuna</th>
-                            <th>Cuartel</th>
-                            <th>Prom.</th>
-                        </tr>
-                    </thead>
-                    <tbody id="datos"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</body>
-</html>
+           <div class="card">
+    <h3>Registros de Monitoreo</h3>
+    <table>
+        <thead>
+            <tr><th>Fecha</th><th>Predio</th><th>Comuna</th><th>Cuartel</th><th>Prom.</th></tr>
+        </thead>
+        <tbody id="datos-monitoreo"></tbody>
+    </table>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+    <h3>Base de Datos de Propietarios</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Propietario</th>
+                <th>Predio</th>
+                <th>Región</th>
+                <th>Comuna</th>
+                <th>Cuarteles</th>
+            </tr>
+        </thead>
+        <tbody id="datos-usuarios"></tbody>
+    </table>
+</div>
